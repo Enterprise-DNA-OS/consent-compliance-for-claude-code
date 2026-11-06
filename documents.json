@@ -1,11 +1,62 @@
 [
   {
-    "name": "example",
-    "title": "TODO(author): the first document this industry must produce",
-    "for_each": "select gen_random_uuid() as id, 'Example' as name",
-    "file": "name",
+    "name": "consent-summary",
+    "title": "Consent compliance summary",
+    "for_each": "select id, code from consents where status = 'active' order by code",
+    "file": "code",
     "sections": [
-      { "title": "Details", "sql": "select 'replace me' as item, $1::text as record_id" }
+      {
+        "title": "The consent",
+        "layout": "record",
+        "sql": "select r.authority_ref as reference, r.holder, s.name as site, r.regulator, replace(r.kind, '_', ' ') as kind, r.activity, r.granted_on, r.commenced_on as given_effect_on, r.expires_on, r.renew_by, r.renewal_lodged_on, r.renewal_ref from consent_register r join sites s on s.code = r.site where r.id = $1"
+      },
+      {
+        "title": "Conditions and when each was last met",
+        "sql": "select d.number as condition, d.kind, d.summary, d.owner, d.last_done as last_met, d.next_due, d.days_overdue from condition_due d where d.consent = (select code from consents where id = $1) order by length(d.number), d.number"
+      },
+      {
+        "title": "Monitoring results, last 12 months",
+        "sql": "select point, parameter, count(*)::int as results, min(value)::float as lowest, max(value)::float as highest, max(coalesce(max_value, min_value))::float as limit_value, count(*) filter (where verdict in ('over limit','under minimum'))::int as breaches from reading_check where consent = (select code from consents where id = $1) and taken_on >= current_date - 365 group by point, parameter order by point, parameter"
+      },
+      {
+        "title": "Incidents and what the regulator was told",
+        "sql": "select code, replace(kind, '_', ' ') as kind, found_on, notify_by, notified_on, regulator_ref, status from incident_register where consent = (select code from consents where id = $1) order by found_on desc"
+      },
+      {
+        "title": "Inspections and notices",
+        "sql": "select 'inspection' as record, code, inspected_on as on_date, replace(grade, '_', ' ') as outcome, findings as detail from inspections where consent_id = $1 union all select 'notice', code, issued_on, replace(kind, '_', ' ') || ' ' || reference, requirement from notices where consent_id = $1 order by on_date desc"
+      }
+    ]
+  },
+  {
+    "name": "incident-report",
+    "title": "Non-compliance incident report",
+    "for_each": "select id, code from incidents order by code",
+    "file": "code",
+    "sections": [
+      {
+        "title": "The incident",
+        "layout": "record",
+        "sql": "select i.code, s.name as site, c.authority_ref as consent, co.number as condition, replace(i.kind, '_', ' ') as kind, i.found_on, i.description, i.cause, case when i.closed_on is null then 'open' else 'closed ' || i.closed_on end as status from incidents i join consents c on c.id = i.consent_id join sites s on s.id = c.site_id left join conditions co on co.id = i.condition_id where i.id = $1"
+      },
+      {
+        "title": "The result that triggered it",
+        "sql": "select rc.point, rc.taken_on, rc.parameter, case when rc.qualifier = '=' then '' else rc.qualifier end || rc.value::float as result, rc.unit, coalesce('max ' || rc.max_value::float, 'min ' || rc.min_value::float) as limit_value, rc.verdict from incidents i join reading_check rc on rc.reading_id = i.reading_id where i.id = $1"
+      },
+      {
+        "title": "Telling the regulator",
+        "layout": "record",
+        "sql": "select r.regulator, r.notify_by as to_be_told_by, r.notified_on as told_on, i.notified_by as told_by, r.regulator_ref as their_reference, r.days_to_notify from incident_register r join incidents i on i.id = r.id where r.id = $1"
+      },
+      {
+        "title": "Corrective action and close-out",
+        "layout": "record",
+        "sql": "select corrective_action, closed_on, closeout_note from incidents where id = $1"
+      },
+      {
+        "title": "Record of every step",
+        "sql": "select a.created_at as recorded_at, a.actor as by, a.command as step, a.detail from activity a join incidents i on i.code = a.record_id where i.id = $1 order by a.id"
+      }
     ]
   }
 ]

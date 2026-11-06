@@ -1,0 +1,6 @@
+Consent Number,Condition Number,Condition Type,Description,Responsible Person,Frequency,Next Due
+NOWHERE-1,1,Monitoring,Something,Someone,Monthly,
+DIS-2001-0871,,Monitoring,No number,Someone,Monthly,
+DIS-2001-0871,9,Monitoring,Bad frequency,Someone,Whenever it rains,
+DIS-2001-0871,10,Monitoring,Bad date,Someone,Monthly,31/02/2027
+DIS-2001-0871,11,Monitoring,,Someone,Monthly,

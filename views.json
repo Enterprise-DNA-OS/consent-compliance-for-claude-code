@@ -2,12 +2,66 @@
   {
     "name": "week",
     "title": "This week",
-    "subtitle": "Consent Compliance for Claude Code: what needs attention, rendered by npm run view",
+    "subtitle": "What needs a person across every site and consent, worst first. Rendered by npm run view.",
     "sections": [
       {
-        "title": "Needs attention",
-        "note": "TODO(author): point this at the industry's attention view (overdue, stuck, quiet).",
-        "sql": "select 'replace me' as item, 'TODO(author)' as why"
+        "title": "Legal duties and the right to operate",
+        "note": "Breaches nobody owns, incidents the regulator has not heard about, notice deadlines, renewal windows and expired consents.",
+        "sql": "select site, item, rule, detail, days from site_attention where severity = 1 order by days desc nulls last, site"
+      },
+      {
+        "title": "Overdue and due soon",
+        "sql": "select site, item, rule, detail, days from site_attention where severity = 2 order by days desc nulls last, site"
+      },
+      {
+        "title": "Housekeeping",
+        "sql": "select site, item, rule, detail, days from site_attention where severity = 3 order by days desc nulls last, site"
+      }
+    ]
+  },
+  {
+    "name": "calendar",
+    "title": "Compliance calendar",
+    "subtitle": "Every condition overdue or due in the next 60 days, by date. Print it for the site meeting.",
+    "sections": [
+      {
+        "title": "Overdue",
+        "sql": "select site, consent, number as condition, summary, owner, next_due as was_due, days_overdue from condition_due where next_due < current_date order by next_due"
+      },
+      {
+        "title": "Due in the next 60 days",
+        "sql": "select site, consent, number as condition, summary, owner, next_due as due from condition_due where next_due between current_date and current_date + 60 order by next_due"
+      }
+    ]
+  },
+  {
+    "name": "consents",
+    "title": "Consent register",
+    "subtitle": "Every consent and licence, its expiry, the date to lodge the renewal by, and what is open against it.",
+    "sections": [
+      {
+        "title": "Renewals and lapse dates",
+        "note": "Lodge a renewal at least six months before expiry to keep operating while it is decided (RMA s124).",
+        "sql": "select code, site, authority_ref, replace(kind, '_', ' ') as kind, expires_on, renew_by, days_to_renew_by, renewal_lodged_on, case when commenced_on is null then 'not given effect, lapses ' || lapse_on else '' end as lapse from consent_register where status = 'active' and (expires_on is not null or commenced_on is null) order by coalesce(renew_by, lapse_on)"
+      },
+      {
+        "title": "Every consent",
+        "sql": "select r.code, r.site, r.authority_ref, replace(r.kind, '_', ' ') as kind, r.activity, r.expires_on, (select count(*) from conditions co where co.consent_id = r.id and co.active)::int as conditions, (select count(*) from incidents i where i.consent_id = r.id and i.closed_on is null)::int as open_incidents from consent_register r order by r.site, r.code"
+      }
+    ]
+  },
+  {
+    "name": "monitoring",
+    "title": "Monitoring against limits",
+    "subtitle": "Breaches in the last year and the state of every water meter.",
+    "sections": [
+      {
+        "title": "Breaches of consent limits, last 12 months",
+        "sql": "select site, point, taken_on, parameter, case when qualifier = '=' then '' else qualifier end || value::float as result, unit, coalesce('max ' || max_value::float, 'min ' || min_value::float) as limit_value, condition, case when has_incident then 'yes' else 'NO' end as incident from reading_check where verdict in ('over limit','under minimum') and taken_on >= current_date - 365 order by taken_on desc"
+      },
+      {
+        "title": "Water takes of 5 L/s or more",
+        "sql": "select site, point, max_rate_ls::float as consented_ls, last_record, days_missing_30d, m3_30d, max_m3_day, days_over_30d, meter_verified_on, verify_by from water_take order by site, point"
       }
     ]
   }
